@@ -34,6 +34,7 @@ library(pbapply)
 library(latex2exp)
 library(RColorBrewer)
 library(ggpubr)
+library(ggplotify)
 
 rm(list=ls())
 select <- dplyr::select
@@ -322,5 +323,39 @@ ggarrange(plotLogs(data.site$`T-SX`, "T-SX") + tt1,
 #ggsave("fallen_log_plots.eps", dpi = 300, height = 4, width = 8, device = cairo_ps)
 
 
+#-----------------------------------
+# Extra plots for model explanations
+#-----------------------------------
+
+set.seed(2854)
+base_inhom <- rpoispp(function(x,y){x/100^2}, win = owin.site)
+base_hom <- rpoispp(intensity(base_inhom), win = owin.site)
+
+# resample empirical lengths
+lengths <- psp.site %>% map(lengths_psp) %>% Reduce(c,.)
+lengths_inhom <- sample(lengths, npoints(base_inhom))
+lengths_hom <- sample(lengths, npoints(base_hom))
+
+# simulate homogeneous and inhomogeneous angular distributions
+set.seed(7757)
+rAngles_inhom <- rvonmises(npoints(base_inhom), circular(0), kappa = circular(2))
+rAngles_hom <- rvonmises(npoints(base_hom), circular(0), kappa = circular(0))
+#rAngles_hom <- runif(npoints(base_hom))*2*pi
+
+par(mfrow = c(1, 1),  pty = "s", oma = c(1,1,1,1), mar = c(1,1,1,1)) 
+
+# homogeneous rose plot + pdf
+rose.diag(rAngles_hom, bins = 24, prop =3.5, ticks = F, axes = F, shrink = 1.5, col = "dodgerblue",
+          control.circle = circle.control(lty = "longdash", col = "grey20"))
+curve.circular(dvonmises(x, circular(0), kappa = circular(0))*1.3, 
+               xlim = c(0,2*pi), add = T, join = T, lwd = 4, lty = "solid", shrink = 0.8) 
+
+# inhomogeneous rose plot + pdf
+as.ggplot(expression({
+  par(mfrow = c(1, 1),  pty = "s", oma = c(1,1,1,1), mar = c(1,1,1,1)) 
+rose.diag(rAngles_inhom, bins = 25, prop =3.5, ticks = F, axes = F, shrink = 1.5, col = "dodgerblue",
+          control.circle = circle.control(lty = "longdash", col = "grey20"))
+curve.circular(dvonmises(x, circular(0), kappa = circular(1.5))*1.5, 
+               xlim = c(0,2*pi), add = T, join = T, lwd = 4, lty = "solid", shrink = 0.8)}))
 
 
