@@ -21,11 +21,11 @@ Lfibre <- function(psp.site.logs, rmax = 25, ..., max.cores = 4, prog = NULL){
   SFibre.inner <- function(x0,y0,x1,y1,owin.t,r, psp.logs, max.weight = 4){
     on.exit(rm(list = ls()))
     psp.this = psp(x0,y0,x1,y1,owin.t)
-    length.this = lengths.psp(psp.this)
+    length.this = lengths_psp(psp.this)
     owin.net = intersect.owin(dilation(psp.this, r),owin.site)
     edge.corr = (pi*r^2 + 2*r*length.this)/area.owin(owin.net)
     psp.clipped = clip.psp(psp.logs, owin.net)
-    length.total.this = sum(lengths.psp(psp.clipped))-length.this
+    length.total.this = sum(lengths_psp(psp.clipped))-length.this
     edge.corr = min(edge.corr, max.weight)  #set maximum weight
     edge.corr*length.total.this
   }
@@ -38,14 +38,14 @@ Lfibre <- function(psp.site.logs, rmax = 25, ..., max.cores = 4, prog = NULL){
   }
   
   # for progress tracking only - can be commented out (warning: uses GLOBAL parameters)
-  print(paste0(prog, ", Sim ", SIM_COUNT, "/",NSIMS+1))
-  SIM_COUNT <<- SIM_COUNT + 1  # global 
+  #print(paste0(prog, ", Sim ", SIM_COUNT, "/",NSIMS+1))
+  #SIM_COUNT <<- SIM_COUNT + 1  # global 
   
   r.values = seq(0.1,rmax,0.1)  
   A = area.owin(psp.site.logs$window)
-  L = sum(lengths.psp(psp.site.logs))
-  l.mean = mean(lengths.psp(psp.site.logs))
-  l.squared.mean = mean(lengths.psp(psp.site.logs)*lengths.psp(psp.site.logs))
+  L = sum(lengths_psp(psp.site.logs))
+  l.mean = mean(lengths_psp(psp.site.logs))
+  l.squared.mean = mean(lengths_psp(psp.site.logs)*lengths_psp(psp.site.logs))
   s.values = as.numeric(pbmclapply(r.values, SFibre.r, psp.site.logs, mc.cores = max.cores))
 
   transformToK = function(Sf,L, n, Lm, LSm){(A/(L - Lm))*(Sf/n + ((2*r.values)/A)*(LSm - Lm^2)) + Lm^2/pi}
@@ -80,7 +80,7 @@ sim.lsp <- function(psp.site.logs, num_reps = 19, lambda = "hom", theta = "unifo
   thres = 100 # side length of square plot
   intersect.boundary = (psp.site.logs$ends$y0 == thres | psp.site.logs$ends$x0 == thres | psp.site.logs$ends$x1 == thres | psp.site.logs$ends$y1 == thres)
   psp.site.logs.whole = subset(psp.site.logs, !intersect.boundary)
-  fit.lengths.lnorm = fitdist(lengths.psp(psp.site.logs.whole), "lnorm")
+  fit.lengths.lnorm = fitdist(lengths_psp(psp.site.logs.whole), "lnorm")
   
   if(lambda == "inhom") logs.ppm = ppm(ppp(psp.site.logs$ends$x0, psp.site.logs$ends$y0, as.owin(psp.site.logs)), ~ polynom(x,y,2))
   
