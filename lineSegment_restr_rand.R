@@ -138,44 +138,11 @@ for(site in sites){
   saveRDS(Lfs,paste0(paste0("output/sf.raw_rr",r_type,"_20210629.rds")))
 }
 
-
-# evaluate summary functions (slow ~ 20hrs using 20 cores)
-if(F){
-snum <- 0
-Lfs <- list()
-  for(site in sites){
-    snum <- snum + 1
-    Lfs[[site]] <- list()
-    message("Site ", snum, "/2, Model 1/6")
-    Lfs[[site]]$ang <- lapply(sims[[site]]$ang, Lfibre,  max.cores = max.cores)
-    
-    message("Site ", snum, "/2, Model 2/6")
-    Lfs[[site]]$len <- lapply(sims[[site]]$len, Lfibre,  max.cores = max.cores)
-    
-    message("Site ", snum, "/2, Model 3/6")
-    Lfs[[site]]$loc <- lapply(sims[[site]]$loc, Lfibre,  max.cores = max.cores)
-    
-    message("Site ", snum, "/2, Model 4/6")
-    Lfs[[site]]$ang_len <- lapply(sims[[site]]$ang_len, Lfibre,  max.cores = max.cores)
-    
-    message("Site ", snum, "/2, Model 5/6")
-    Lfs[[site]]$ang_loc <- lapply(sims[[site]]$ang_loc, Lfibre,  max.cores = max.cores)
-    
-    message("Site ", snum, "/2, Model 6/6")    
-    Lfs[[site]]$len_loc <- lapply(sims[[site]]$len_loc, Lfibre,  max.cores = max.cores)
-
-    saveRDS(Lfs,paste0("output/sf.raw_rr_20210629.rds"))
-  }
-}
-
-if(F){
-
-#--------
 # plots
-#--------
+if(F){
 
 # load all summary function data: both sites, all models, all simulations + observations, S(r), K(r), L(r), Kpcf(r)
-sf.raw <- readRDS("output/sf.raw_rr_20210629.rds")
+sf.raw <- readRDS("output/sf.raw_rr2_20210629.rds")
 
 # merge r, obs and sims into a single tibble for a given summary function
 getSfun <- function(flist, fun = "L"){
@@ -186,10 +153,6 @@ getSfun <- function(flist, fun = "L"){
 # colours for plots
 blues9 <- brewer.pal(9,"Blues")  
 reds9 <- brewer.pal(9,"Reds") 
-
-#------------
-# L(r) plots
-#------------
 
 # main tibble of L(r) data for plots
 Lf <- sf.raw %>% lapply(lapply, getSfun, fun = "L")
@@ -225,35 +188,31 @@ Ldiscrepancy <- LfunMean %>% lapply(function(x) x %>% select(-r) %>% mutate_at(v
 
 # plot lists with model comparison data in subtitle
 sumPlots <- lapply(sites, function(site){
-  lapply(names(Lf[[site]]), function(x) plotLp(Lf[[site]][[x]], title = paste(site,x), 
-                                              subtitle = bquote(" "~Discrepancy==.(round(Ldiscrepancy[[site]][[x]],0)))))
+  lapply(names(Lf[[site]]), function(x) plotLp(Lf[[site]][[x]], title = NULL, 
+                                              subtitle = bquote(.(paste0(x,"   ("))~D==.(round(Ldiscrepancy[[site]][[x]],0))~.(")"))))
 })
-names(Lf[["T-SX"]])
+
 # plot theme
-tt <- theme(plot.title = element_text(colour = blues9[9], size = 12), panel.grid = element_blank())
-y_lim <- ylim(c(-0.4,4))
+tt <- theme(plot.subtitle = element_text(colour = blues9[9], size = 10), panel.grid = element_blank())
+y_lim <- ylim(c(-0.4,3.5))
+np <- length(plots.SX) # number of plots per site
 
-plots.SX <- list(
-  sumPlots$`T-SX`[[1]] + labs(title = "r-angle", x = NULL) + y_lim + tt,
-  sumPlots$`T-SX`[[2]] + labs(title = "r-length", x = NULL) + y_lim + tt,
-  sumPlots$`T-SX`[[3]] + labs(title = "r-location", x = NULL) + y_lim + tt,
-  sumPlots$`T-SX`[[4]] + labs(title = "r-angle-length", x = NULL) + y_lim + tt,
-  sumPlots$`T-SX`[[5]] + labs(title = "r-angle-location", x = NULL) + y_lim + tt,
-  sumPlots$`T-SX`[[6]] + labs(title = "r-length-location") + y_lim + tt)
+plots.SX <- sumPlots$`T-SX` %>% map(~ .x + labs(x = NULL) + y_lim + tt)
+plots.FR <- sumPlots$`W-FR` %>% map(~ .x + labs(x = NULL) + y_lim + tt)
 
-plots.FR <- list(
-  sumPlots$`W-FR`[[1]] + labs(title = "r-angle", x = NULL, y = " ") + y_lim + tt,
-  sumPlots$`W-FR`[[2]] + labs(title = "r-length", x = NULL, y = " ") + y_lim + tt,
-  sumPlots$`W-FR`[[3]] + labs(title = "r-location", x = NULL, y = " ") + y_lim + tt,
-  sumPlots$`W-FR`[[4]] + labs(title = "r-angle-length", x = NULL, y = " ") + y_lim + tt,
-  sumPlots$`W-FR`[[5]] + labs(title = "r-angle-location", x = NULL, y = " ") + y_lim + tt,
-  sumPlots$`W-FR`[[6]] + labs(title = "r-length-location", y = " ") + y_lim + tt)
+plotSX <- ggarrange(plotlist = plots.SX, ncol = 1, nrow = np, labels = LETTERS[1:np]) %>%  
+  annotate_figure(top = text_grob("T-SX", color = "grey20", face = "bold", size = 14),
+                  bottom = text_grob("r", color = "black", face = "plain", size = 12))
+plotFR <- ggarrange(plotlist = plots.FR, ncol = 1, nrow = np, labels = LETTERS[1:np + np]) %>%  
+  annotate_figure(top = text_grob("W-FR", color = "grey20", face = "bold", size = 14),
+                  bottom = text_grob("r", color = "black", face = "plain", size = 12))
 
-plotSX <- ggarrange(plotlist = plots.SX, ncol = 1, nrow = 6, labels = c("A","B","C","D","E","F")) %>%  annotate_figure(top = text_grob("T-SX", color = "grey20", face = "bold", size = 14))
-plotFR <- ggarrange(plotlist = plots.FR, ncol = 1, nrow = 6, labels = c("G","H","I","J","K","L")) %>%  annotate_figure(top = text_grob("W-FR", color = "grey20", face = "bold", size = 14))
+Lr_plot <- ggarrange(plotSX, plotFR, nrow = 1, ncol = 2)
+#ggsave("Lr_results_rr2.pdf", plot = Lr_plot, dpi = 300, height = 11, width = 8, device = cairo_pdf)
 
-ggarrange(plotSX, plotFR, nrow = 1, ncol = 2)
-#ggsave("Lr_results.eps", dpi = 300, height = 11, width = 8, device = cairo_ps)
+
+sdsd
+
 
 #-----------
 # pcf plots
