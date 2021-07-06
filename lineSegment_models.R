@@ -32,14 +32,17 @@ m_intensity$xy <- with(logs, ppm(bases.ppp ~ 1 + polynom(x,y,2)))
 m_intensity$xy_slope <- with(logs, ppm(bases.ppp ~ 1 + polynom(x,y,2) + slope.im))
 
 # model comparison
-m_intensity %>% map("T-SX") %>% map_dbl(AIC) %>% {. - min(.)} %>% round(3)
-m_intensity %>% map("W-FR") %>% map_dbl(AIC) %>% {. - min(.)} %>% round(3)
+m_intensity %>% map("T-SX") %>% map_dbl(AIC) %>% {. - min(.)} %>% round(1)
+m_intensity %>% map("W-FR") %>% map_dbl(AIC) %>% {. - min(.)} %>% round(1)
 
 
 #--------------------
 # 2: angle models
 #--------------------
 
+# fits the von Mises circular distribution to supplied set of angles
+# set mu and/or kappa equal to zero for simpler submodels
+# returns the fitted object, the log likelihood, and the AIC estimate
 fit_vonmises <- function(angles, mu = NULL, kappa = NULL){
   fit <- mle.vonmises(angles, mu = mu, kappa = kappa)
   loglik <- dvonmises(angles, fit$mu, fit$kappa, log = T) %>% sum
@@ -48,7 +51,7 @@ fit_vonmises <- function(angles, mu = NULL, kappa = NULL){
   list(fit = fit, loglik = loglik, aic = aic)
 }
 
-# calculate slope at each log base
+# calculate slope at each log base and add to hyperframe
 logs$slope_i <- with(logs, {
   bases.ppp %>% as.data.frame() %>% 
     mutate(across(everything(), ~ pmax(1,ceiling(.x)))) %>% 
@@ -57,6 +60,9 @@ logs$slope_i <- with(logs, {
     pull(slope)
 })
 
+# fits the local slope-dependent angle model
+# location (mu_i) = negative gradient at base i (-\nabla_i)
+# log concentration (log kappa_i) = beta0 + beta1*slope_i
 fit_vm_local <- function(angles, slopes){
   # negative log-likelihood for local non-uniform angle model
   nll_vm_local <- function(params, angles, slopes){
@@ -79,8 +85,8 @@ m_angle$vM_rel <- with(logs, fit_vonmises(circular(relAngle), mu = circular(0)))
 m_angle$vM_rel_slope <- with(logs, fit_vm_local(circular(relAngle), slope_i))
 
 # model comparison
-m_angle %>% map("T-SX") %>% map_dbl("aic") %>% {. - min(.)} %>% round(3)
-m_angle %>% map("W-FR") %>% map_dbl("aic") %>% {. - min(.)} %>% round(3)
+m_angle %>% map("T-SX") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
+m_angle %>% map("W-FR") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
 
 
 
