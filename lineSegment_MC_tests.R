@@ -38,109 +38,73 @@ library(ggplotify)
 
 rm(list=ls())
 select <- dplyr::select
+max.cores <- 20
 
 # import function definitions
 source("lineSegmentFunctions.R")
 
-max.cores <- 20
-
 # fallen-log data
-data.logs <- read.csv("data/logs.csv")
-data.site <- split(data.logs,data.logs$SiteName)
-sites <- unique(data.logs$SiteName) %>% as.character()
+logs <- readRDS("output/logs_2021_07_06.rds")
+sites <- logs %>% rownames
 names(sites) <- sites
 
-# create spatstat psp objects
-owin.site <- owin(c(0,100), c(0,100)) # observation window
-psp.site <- lapply(data.site, function(df) psp(df$X1, df$Y1, df$X2, df$Y2, owin.site))
+# spatstat psp objects
+owin.site <- logs$logs.psp[[1]]$window
+psp.site <- logs$logs.psp
 
-# simulate models (6 models x 2 sites)
-NSIMS <- 99  # global constant
+# number of model simulations 
+NSIMS <- 99 
 
-r_type <- 2
-
-# TYPE 1: restricted resampling only
-randomise1_psp <- function(psp_object, randomise, nreps, window){
+# Simulate restricted resampling and uniform randomisation
+randomise_psp <- function(psp_object, randomise, nsims, window = NULL){
   df = psp_object %>% 
     as.data.frame() %>% 
     mutate(angle = angles.psp(psp_object), 
            length = lengths_psp(psp_object))
-  c(list(psp_object), lapply(1:nreps, function(i){
-    df %>% mutate(across(all_of(randomise), sample)) %>% 
-      mutate(x1 = pmin(x0 + length*cos(angle),100), y1 = pmin(y0 + length*sin(angle),100)) %>% 
-      mutate(length = NULL, angle = NULL) %>% 
-      mutate(x1 = pmax(x1,0), y1 = pmax(y1,0)) %>% 
-      as.psp(window= window)
-  }))
-}
-
-r_type1 <- list(ang = c("angle"), len = c("length"), loc = c("x0","y0"),
-              ang_len = c("angle","length"), ang_loc = c("angle","x0","y0"), 
-              len_loc = c("length","x0", "y0"))
-
-set.seed(390403) #sample(1e6,1)
-sims1 <- lapply(sites, function(site){
-  r = lapply(r_type, function(rand){
-    randomise1_psp(psp.site[[site]], randomise = rand, nreps = NSIMS, window = owin.site)
-  })
-  names(r) <- names(r_type)
-  r
-})
-
-
-# TYPE 2: Restricted resampling and uniform randomisation
-randomise2_psp <- function(psp_object, randomise, nreps, window){
-  df = psp_object %>% 
-    as.data.frame() %>% 
-    mutate(angle = angles.psp(psp_object), 
-           length = lengths_psp(psp_object))
-  c(list(psp_object), lapply(1:nreps, function(i){
+  c(list(psp_object), lapply(1:nsims, function(i){
     if("angle-rs" %in% randomise) df = df %>% mutate(angle = sample(angle))
     if("angle-unif" %in% randomise) df = df %>% mutate(angle = runif(n())*2*pi)
     if("length-rs" %in% randomise) df = df %>% mutate(length = sample(length))
     if("location-unif" %in% randomise) df = df %>% mutate(x0 = runif(n())*100, y0 = runif(n())*100)
     df %>%
-      mutate(x1 = pmin(x0 + length*cos(angle),100), y1 = pmin(y0 + length*sin(angle),100)) %>% 
+      mutate(x1 = pmin(x0 + length*cos(angle),max(Window(psp_object)$xrange)), 
+             y1 = pmin(y0 + length*sin(angle),max(Window(psp_object)$xrange))) %>% 
       mutate(length = NULL, angle = NULL) %>% 
       mutate(x1 = pmax(x1,0), y1 = pmax(y1,0)) %>% 
-      as.psp(window= window)
+      as.psp(window= Window(psp_object))
   }))
 }
 
-r_names2 <- c("r-angle-rs","r-angle-unif","r-location-unif","r-length-rs",
+# list of hypotheses by name
+r_names <- c("r-angle-rs","r-angle-unif","r-location-unif","r-length-rs",
   "r-angle-unif-length-rs", "r-length-rs-location-unif", "r-length-rs-location-unif-angle-unif")
 
-r_type2 <- list(c("angle-rs"), c("angle-unif"), c("location-unif"), c("length-rs"), 
+# list of restricted quantities for each hypothesis
+r_type <- list(c("angle-rs"), c("angle-unif"), c("location-unif"), c("length-rs"), 
                 c("angle-rs","length-rs"), c("length-rs","location-unif"), 
                 c("angle-rs","length-rs","location-unif"))
 
-names(r_type2) <- r_names2
+names(r_type) <- r_names
 
+# generate Monte Carlo simulations
 set.seed(390403) #sample(1e6,1)
-sims2 <- lapply(sites, function(site){
-  r = lapply(r_type2, function(rand){
-    randomise2_psp(psp.site[[site]], randomise = rand, nreps = NSIMS, window = owin.site)
-  })
-  names(r) <- names(r_type2)
-  r
-})
+sims <- with(logs, r_type %>% map(~ randomise_psp(logs.psp, .x, NSIMS)))
 
-if(r_type == 1) sims <- sims1
-if(r_type == 2) sims <- sims2
-
-Lfs <- list()
-for(site in sites){
-  Lfs[[site]] <- list()
-  for(model in names(sims[[site]])){
-    message(paste("Site:", site, "  Model:", model))
-    Lfs[[site]][[model]] <- imap(sims[[site]][[model]], ~ {message(.y); Lfibre(.x, max.cores = max.cores)})
+# compute L(r) ----- slow ~ 6 hours
+if(F){
+  Lfs <- vector("list", length(sites))
+  for(site in sites){
+    Lfs[[site]] <- vector("list", length(r_names))
+    for(model in names(sims[[site]])){
+      message(paste("Site:", site, "  Model:", model))
+      Lfs[[site]][[model]] <- imap(sims[[site]][[model]], ~ {message(.y); Lfibre(.x, max.cores = max.cores)})
+    }
+    saveRDS(Lfs,paste0(paste0("output/sf.raw_rr",r_type,"_20210629.rds")))
   }
-  saveRDS(Lfs,paste0(paste0("output/sf.raw_rr",r_type,"_20210629.rds")))
 }
 
 # plots
 if(F){
-
 # load all summary function data: both sites, all models, all simulations + observations, S(r), K(r), L(r), Kpcf(r)
 sf.raw <- readRDS("output/sf.raw_rr2_20210629.rds")
 
@@ -163,18 +127,18 @@ plotLp<- function(dat, title = NULL, subtitle = NULL){
   dat.obs <- dat %>% select(-r) %>% 
     apply(1, function(row) (101 - rank((row - mean(row))^2))/100) %>% 
     t %>% 
-    as.tibble %>% 
+    as_tibble %>% 
     mutate(r = dat$r, L = dat$obs, p = ifelse(obs<=0.05, reds9[7],blues9[9])) %>% 
-    select(r,L,p)
+    select(r,L,p, obs)
   dat.mean <- dat %>% select(-r) %>% apply(1,mean) %>% tibble(r = dat$r, L = .)
   dat.long %>% ggplot(aes(r,L-r)) +
     geom_line(aes(group = sim), alpha = 0.2, color = blues9[5], size = 0.5) +
     geom_line(data = dat.mean, col = "grey10", size = 1, lty = "dashed") +
     geom_line(col = dat.obs$p, data = dat.obs, size = 1) +
+    #geom_point(data = dat.obs %>% filter(obs <= 0.05), size = 1) +
     labs(title = title, subtitle = subtitle) +
     theme_light()
 }
-
 
 # compute mean of summary functions
 LfunMean <- lapply(sites, function(site){
@@ -187,15 +151,21 @@ discrepancy_fun <- function(x, y, q = 1, p =2) (abs(x^q - y^q))^p
 Ldiscrepancy <- LfunMean %>% lapply(function(x) x %>% select(-r) %>% mutate_at(vars(-obs), ~ discrepancy_fun(obs,.)) %>% select(-obs) %>% apply(2,sum))
 
 # plot lists with model comparison data in subtitle
+r_names_plot <- c("r-angle-rs","r-angle-unif","r-location-unif","r-length-rs",
+                  "r-length-rs-location-unif-angle-unif")
+r_titles_plot <- c("resampled angles", "random uniform angles", "random uniform locations",
+                 "resampled lengths", "CSR")
+names(r_titles_plot) <- r_names_plot
+
 sumPlots <- lapply(sites, function(site){
-  lapply(names(Lf[[site]]), function(x) plotLp(Lf[[site]][[x]], title = NULL, 
-                                              subtitle = bquote(.(paste0(x,"   ("))~D==.(round(Ldiscrepancy[[site]][[x]],0))~.(")"))))
+  lapply(r_names_plot, function(x) plotLp(Lf[[site]][[x]], title = NULL, 
+                                              subtitle = paste0(r_titles_plot[x],"   (D = ", round(Ldiscrepancy[[site]][[x]],0),")")))
 })
 
 # plot theme
 tt <- theme(plot.subtitle = element_text(colour = blues9[9], size = 10), panel.grid = element_blank())
 y_lim <- ylim(c(-0.4,3.5))
-np <- length(plots.SX) # number of plots per site
+np <- length(r_names_plot) # number of plots per site
 
 plots.SX <- sumPlots$`T-SX` %>% map(~ .x + labs(x = NULL) + y_lim + tt)
 plots.FR <- sumPlots$`W-FR` %>% map(~ .x + labs(x = NULL) + y_lim + tt)
@@ -208,7 +178,8 @@ plotFR <- ggarrange(plotlist = plots.FR, ncol = 1, nrow = np, labels = LETTERS[1
                   bottom = text_grob("r", color = "black", face = "plain", size = 12))
 
 Lr_plot <- ggarrange(plotSX, plotFR, nrow = 1, ncol = 2)
-#ggsave("Lr_results_rr2.pdf", plot = Lr_plot, dpi = 300, height = 11, width = 8, device = cairo_pdf)
+Lr_plot
+ggsave("results_MC_tests_2021_07_06.pdf", plot = Lr_plot, dpi = 300, height = 9, width = 8, device = cairo_pdf)
 
 
 sdsd
@@ -239,7 +210,7 @@ plotPCF<- function(dat, method = "c", title = NULL, subtitle = NULL){
   dat.obs <- dat %>% select(-r) %>% 
     apply(1, function(row) (101 - rank((row - mean(row))^2))/100) %>% 
     t %>% 
-    as.tibble %>% 
+    as_tibble %>% 
     mutate(r = dat$r, L = dat$obs, p = ifelse(obs<=0.05, reds9[7],blues9[9])) %>% 
     select(r,L,p)
   dat.mean <- dat %>% select(-r) %>% apply(1,mean) %>% tibble(r = dat$r, L = .)
@@ -401,7 +372,6 @@ ggsave("demo_logs_v1.pdf", width = 6, height = 5)
 #ggsave("plots/demo_logs_v1d.pdf", width = 6, height = 5)
 
 
-rstan::Rhat()
 
 
 

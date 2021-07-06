@@ -14,7 +14,7 @@ library(pbmcapply)
 # computes S, K and L function for line segment pattern. 
 # input: a psp object (spatstat)
 # output: data frame of summary function values (Kpcf(r) is suitable for differentiation to g(r))
-Lfibre <- function(psp.site.logs, rmax = 25, ..., max.cores = 4, prog = NULL){
+Lfibre <- function(psp.site.logs, rmax = 25, ..., max.cores = 4){
   on.exit(rm(list = ls()))
   
   # Calculates individual summands for a single line segment at a given radius 
@@ -36,10 +36,6 @@ Lfibre <- function(psp.site.logs, rmax = 25, ..., max.cores = 4, prog = NULL){
     svalues = with(psp.this$ends, mapply(SFibre.inner, x0, y0, x1, y1, list(psp.this$window), list(r), list(psp.this)))
     sum(as.numeric(svalues))
   }
-  
-  # for progress tracking only - can be commented out (warning: uses GLOBAL parameters)
-  #print(paste0(prog, ", Sim ", SIM_COUNT, "/",NSIMS+1))
-  #SIM_COUNT <<- SIM_COUNT + 1  # global 
   
   r.values = seq(0.1,rmax,0.1)  
   A = area.owin(psp.site.logs$window)

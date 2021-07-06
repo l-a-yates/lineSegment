@@ -30,7 +30,6 @@ select <-  dplyr::select
 #----------
 # Functions
 #----------
-#----
 
 # initial loess smoothing followed by spline fitting
 # spline allows derivatives, i.e. slope
@@ -98,7 +97,7 @@ psp.site <- lapply(data.logs, function(df) psp(df$X1, df$Y1, df$X2, df$Y2, owin.
 
 # compute relative angles of logs to negative gradient at log base
 # slope.thresh determines slope threshold at base for inclusion in returned set
-# slope.greater determines whether retuend values should be above (T) or below(F) the threshold value
+# slope.greater determines whether returned values should be above (T) or below (F) the threshold value
 getRelAngles <- function(slope.thresh = 0, slope.greater = T, returnSlope = F) {lapply(sites, function(site){
     logs.dir.rad <- with(data.logs[[site]], coord2rad(x = X2-X1, y = Y2-Y1)) 
     ## associate log base with the nearest cell in the 100X100 array
@@ -127,8 +126,12 @@ logs <- hyperframe(logs.psp = psp.site, row.names = names(psp.site))
 logs$dhdx <- dhdx[rownames(logs)]
 logs$dhdy <- dhdy[rownames(logs)]
 logs$relAngle <- getRelAngles()
-#saveRDS(logs,"../logs_20200731.rds")
+saveRDS(logs,"output/logs_2021_07_06.rds")
 
+
+
+logs$relAngle$`W-FR` %>% length
+logs$logs.psp$`W-FR`
 
 # combine and plot all relative angles
 all.rel.angles <- Reduce(c,getRelAngles())
@@ -153,7 +156,6 @@ compare <- as.matrix(cbind(AIC_BIC_JP,AIC_BIC_vM,AIC_BIC_Card,AIC_BIC_Cauchy))
 dimnames(compare) <- list(c("AIC","BIC"), c("JP","vM","Cardoid","Cauchy"))
 compare
 compare[1,] %>% simplify - min(compare[1,] %>% simplify) # von Mises is the best fit
-
 
 
 # force mu = 0 for a simpler model that is centred around the downhill direction
