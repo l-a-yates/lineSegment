@@ -38,7 +38,7 @@ library(ggplotify)
 
 rm(list=ls())
 select <- dplyr::select
-max.cores <- 20
+max.cores <- 30
 
 # import function definitions
 source("lineSegmentFunctions.R")
@@ -53,7 +53,7 @@ owin.site <- logs$logs.psp[[1]]$window
 psp.site <- logs$logs.psp
 
 # number of model simulations 
-NSIMS <- 99 
+NSIMS <- 199 
 
 # Simulate restricted resampling and uniform randomisation
 randomise_psp <- function(psp_object, randomise, nsims, window = NULL){
@@ -76,12 +76,11 @@ randomise_psp <- function(psp_object, randomise, nsims, window = NULL){
 }
 
 # list of hypotheses by name
-r_names <- c("r-angle-rs","r-angle-unif","r-location-unif","r-length-rs",
-  "r-angle-unif-length-rs", "r-length-rs-location-unif", "r-length-rs-location-unif-angle-unif")
+r_names <- c("r-angle-rs","r-angle-unif","r-location-unif",
+             "r-length-rs", "r-length-rs-location-unif-angle-unif")
 
 # list of restricted quantities for each hypothesis
 r_type <- list(c("angle-rs"), c("angle-unif"), c("location-unif"), c("length-rs"), 
-                c("angle-rs","length-rs"), c("length-rs","location-unif"), 
                 c("angle-rs","length-rs","location-unif"))
 
 names(r_type) <- r_names
@@ -90,23 +89,28 @@ names(r_type) <- r_names
 set.seed(390403) #sample(1e6,1)
 sims <- with(logs, r_type %>% map(~ randomise_psp(logs.psp, .x, NSIMS)))
 
-# compute L(r) ----- slow ~ 6 hours
+# compute L(r) ----- slow ~ 6 hours  start: 17:56
 if(F){
-  Lfs <- vector("list", length(sites))
+  Lfs <- list()
   for(site in sites){
-    Lfs[[site]] <- vector("list", length(r_names))
+    Lfs[[site]] <- list()
     for(model in names(sims[[site]])){
       message(paste("Site:", site, "  Model:", model))
       Lfs[[site]][[model]] <- imap(sims[[site]][[model]], ~ {message(.y); Lfibre(.x, max.cores = max.cores)})
     }
-    saveRDS(Lfs,paste0(paste0("output/sf.raw_rr",r_type,"_20210629.rds")))
+    saveRDS(Lfs,paste0(paste0("output/sf.raw_nsim",NSIMS,"_2021_07_08.rds")))
   }
 }
+
 
 # plots
 if(F){
 # load all summary function data: both sites, all models, all simulations + observations, S(r), K(r), L(r), Kpcf(r)
+sf.raw <- readRDS("output/sf.raw_nsim199_2021_07_08.rds")
 sf.raw <- readRDS("output/sf.raw_rr2_20210629.rds")
+
+NSIMS <- length(sf.raw[[1]][[1]])-1
+r_limits <- c(0,25) # c(r_min, r_max)
 
 # merge r, obs and sims into a single tibble for a given summary function
 getSfun <- function(flist, fun = "L"){
@@ -125,7 +129,7 @@ Lf <- sf.raw %>% lapply(lapply, getSfun, fun = "L")
 plotLp<- function(dat, title = NULL, subtitle = NULL){
   dat.long <- pivot_longer(dat,-1,"sim", values_to = "L") 
   dat.obs <- dat %>% select(-r) %>% 
-    apply(1, function(row) (101 - rank((row - mean(row))^2))/100) %>% 
+    apply(1, function(row) ((NSIMS + 2) - rank((row - mean(row))^2))/(NSIMS + 1)) %>% 
     t %>% 
     as_tibble %>% 
     mutate(r = dat$r, L = dat$obs, p = ifelse(obs<=0.05, reds9[7],blues9[9])) %>% 
@@ -140,6 +144,30 @@ plotLp<- function(dat, title = NULL, subtitle = NULL){
     theme_light()
 }
 
+plotLp<- function(dat, r_limits, p_sig = 0.05, title = NULL, subtitle = NULL){
+  dat.long <- pivot_longer(dat,-1,"sim", values_to = "L") 
+
+  dat_limited <- dat %>% filter(r >= r_limits[1], r <= r_limits[2])
+  dat_sig_p <- dat_limited %>% 
+    select(-r) %>% 
+    apply(1, function(row) (row - mean(row))^2) %>% # squared area
+    apply(1, cumsum) %>% # cumulative area, i.e., integral
+    apply(1, function(row) ((NSIMS + 2) - rank(row))/(NSIMS + 1)) %>% # progressive p-value
+    {tibble(r = dat_limited$r, p =.["obs",], L = dat_limited$obs)} %>% 
+    mutate(sig = p<=p_sig, grp = c(0,diff(sig))) %>% 
+    filter(sig) %>% 
+    mutate(sig = NULL, grp = cumsum(grp))
+  
+  dat.mean <- dat %>% select(-r) %>% apply(1,mean) %>% tibble(r = dat$r, L = .)
+  dat.long %>% ggplot(aes(r,L-r)) +
+    geom_line(aes(group = sim), alpha = 0.2, color = blues9[5], size = 0.5) +
+    geom_line(data = dat.mean, col = "grey10", size = 1, lty = "dashed") +
+    geom_line(aes(y = obs -r), col = blues9[9], data = dat, size = 1) +
+    geom_line(aes(group = grp), col = reds9[7], data = dat_sig_p, size = 1) +
+    labs(title = title, subtitle = subtitle) +
+    theme_light()
+}
+
 # compute mean of summary functions
 LfunMean <- lapply(sites, function(site){
   Lf[[site]] %>% sapply(function(x) x %>% select(-r) %>% apply(1,mean)) %>% as_tibble() %>% 
@@ -148,24 +176,26 @@ LfunMean <- lapply(sites, function(site){
 
 # Model Comparison
 discrepancy_fun <- function(x, y, q = 1, p =2) (abs(x^q - y^q))^p 
-Ldiscrepancy <- LfunMean %>% lapply(function(x) x %>% select(-r) %>% mutate_at(vars(-obs), ~ discrepancy_fun(obs,.)) %>% select(-obs) %>% apply(2,sum))
+Ldiscrepancy <- LfunMean %>% 
+  lapply(function(x) x %>% 
+           select(-r) %>%
+           mutate_at(vars(-obs), ~ discrepancy_fun(obs,.)) %>% 
+           filter(obs >= r_limits[1], obs <= r_limits[2]) %>% select(-obs) %>% apply(2,sum))
 
-# plot lists with model comparison data in subtitle
-r_names_plot <- c("r-angle-rs","r-angle-unif","r-location-unif","r-length-rs",
-                  "r-length-rs-location-unif-angle-unif")
 r_titles_plot <- c("resampled angles", "random uniform angles", "random uniform locations",
                  "resampled lengths", "CSR")
-names(r_titles_plot) <- r_names_plot
+names(r_titles_plot) <- r_names
 
+# plot lists with model discrepancy values in subtitle
 sumPlots <- lapply(sites, function(site){
-  lapply(r_names_plot, function(x) plotLp(Lf[[site]][[x]], title = NULL, 
+  lapply(r_names, function(x) plotLp(Lf[[site]][[x]], r_limits = r_limits, title = NULL, 
                                               subtitle = paste0(r_titles_plot[x],"   (D = ", round(Ldiscrepancy[[site]][[x]],0),")")))
 })
 
 # plot theme
 tt <- theme(plot.subtitle = element_text(colour = blues9[9], size = 10), panel.grid = element_blank())
 y_lim <- ylim(c(-0.4,3.5))
-np <- length(r_names_plot) # number of plots per site
+np <- length(r_names) # number of plots per site
 
 # adjust labels
 plots.SX <- sumPlots$`T-SX` %>% map(~ .x + labs(x = NULL) + y_lim + tt)
@@ -182,10 +212,9 @@ plotFR <- ggarrange(plotlist = plots.FR, ncol = 1, nrow = np, labels = LETTERS[1
 # final plot
 Lr_plot <- ggarrange(plotSX, plotFR, nrow = 1, ncol = 2)
 
-#ggsave("results_MC_tests_2021_07_06.pdf", plot = Lr_plot, dpi = 300, height = 9, width = 8, device = cairo_pdf)
+#ggsave("plots/results_MC_tests_nsim99_2021_07_08.pdf", plot = Lr_plot, dpi = 300, height = 9, width = 8, device = cairo_pdf)
 
 
-sdsd
 
 
 #-----------
