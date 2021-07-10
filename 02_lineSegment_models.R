@@ -8,9 +8,6 @@ rm(list=(ls()))
 
 select <-  dplyr::select
 
-# load extra functions from use with circular package
-#load("data/CircStatsInR.RData", envir = circ <- new.env()) 
-
 # load spatstat::hyperframe object
 logs <- readRDS("output/logs_2021_07_06.rds")
 logs$angle <- with(logs, as.data.frame(logs.psp) %>% {coord2rad(.$x1-.$x0, .$y1-.$y0)})
@@ -89,4 +86,33 @@ m_angle %>% map("T-SX") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
 m_angle %>% map("W-FR") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
 
 
+#----------------------------------------------------------------------------
+# Extra: a more complex angle model (not included in the manuscript)
+# Includes unmeasured site-level effects and gradient (both angle and slope)
+#----------------------------------------------------------------------------
 
+fit_vm_local_2 <- function(angles, slopes){
+  # negative log-likelihood
+  nll_vm_local <- function(params, angles, slopes){
+    b0 <- params[1]
+    b1 <- params[2]
+    b2 <- params[3] 
+    mu <- plogis(b2)*2*pi
+    kappa <- exp(b0 + b1*slopes) # log link
+    sapply(1:length(angles), function(i){
+      dvonmises(circular(angles[i]),circular(mu),circular(kappa[i]), log = T)
+    }) %>% sum %>% {.*-1}
+  }
+  opt <- optim(c(0,0,0), nll_vm_local, angles = circular(angles), slopes = slopes)
+  list(par = opt$par, loglik = -1*opt$value, aic = 2*opt$value + 6)
+}
+
+m_angle$vM_rel_slope_2 <- with(logs, fit_vm_local_2(circular(relAngle), slope_i))
+
+# model comparison: the additional complexity is not selected by AIC
+m_angle %>% map("T-SX") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
+m_angle %>% map("W-FR") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
+
+# parameter estimates (inv-link)
+m_angle$vM_rel_slope_2$`T-SX`$par[3] %>% {2*pi*plogis(.)} %>% {.-2*pi}
+m_angle$vM_rel_slope_2$`W-FR`$par[3] %>% {2*pi*plogis(.)} %>% {.-2*pi}
