@@ -1,8 +1,13 @@
 #-------------------------------------------------------
 # Spatial statistics for line segment data 
-# Functions for S(r), K(r) and L(r) for fallen-log data 
-# Luke Yates
-# Last Edited: 10/06/2021
+#
+# Main function to compute summary statistics for a line-segment pattern
+#
+# The function Lfibre() can be applied to any spatstat psp object
+#
+# Authors: Luke Yates
+# File created: 02/03/2019
+# Last Edited: 10/07/2021
 #-------------------------------------------------------
 
 library(spatstat)
@@ -10,43 +15,62 @@ library(pbmcapply)
 
 # computes S, K and L function for line segment pattern. 
 # input: a psp object (spatstat)
-# output: data frame of summary function values (Kpcf(r) is suitable for differentiation to g(r))
-Lfibre <- function(psp_object, rmax = 25, ..., max.cores = 4){
+# output: data frame of summary function values (Kpcf is suitable for differentiation to g(r))
+Lfibre <- function(psp_object, r_min = 0, r_max = 25, r_increment = 0.1, ..., max.cores = 4){
   on.exit(rm(list = ls()))
-  
-  # Calculates individual summands for a single line segment at a given radius 
-  SFibre.inner <- function(x0,y0,x1,y1,owin.t,r, psp_object, max.weight = 4){
+  # Calculates individual summands for a single line segment at a given radius r
+  SFibre.inner <- function(x0,y0,x1,y1,r,max.weight = 4){
     on.exit(rm(list = ls()))
-    psp.i = psp(x0,y0,x1,y1,owin.t)
-    length.this = lengths_psp(psp.i)
-    owin.net = intersect.owin(dilation(psp.i, r),owin.site)
-    edge.corr = (pi*r^2 + 2*r*length.this)/area.owin(owin.net)
-    psp.clipped = clip.psp(psp_object, owin.net)
-    length.total.this = sum(lengths_psp(psp.clipped))-length.this
+    psp.i = psp(x0,y0,x1,y1,W)
+    length.i = lengths_psp(psp.i)
+    owin.net = intersect.owin(dilation(psp.i, r),W)
+    edge.corr = (pi*r^2 + 2*r*length.i)/area.owin(owin.net)
+    length.total.i = sum(lengths_psp(clip.psp(psp_object, owin.net)))-length.i
     edge.corr = min(edge.corr, max.weight)  #set maximum weight
-    edge.corr*length.total.this
+    edge.corr*length.total.i
   }
-  
   # Computes S(r) for all segments at fixed 'radius' r
-  SFibre.r <- function(r, psp_object){
+  SFibre.r <- function(r){
     on.exit(rm(list = ls()))
-    svalues = with(psp_object$ends, mapply(SFibre.inner, x0, y0, x1, y1, list(psp_object$window), list(r), list(psp_object)))
-    sum(as.numeric(svalues))
+    sum(as.numeric(with(psp_object$ends, mapply(SFibre.inner, x0, y0, x1, y1, list(r)))))
   }
-  
-  r.values = seq(0.1,rmax,0.1)  
-  A = area.owin(psp_object$window)
+  r = seq(r_min + r_increment,r_max,r_increment) # vector of r-values
+  W <- psp_object$window
+  A = area.owin(W)
   L = sum(lengths_psp(psp_object))
-  l.mean = mean(lengths_psp(psp_object))
-  l.squared.mean = mean(lengths_psp(psp_object)*lengths_psp(psp_object))
-  s.values = as.numeric(pbmclapply(r.values, SFibre.r, psp_object, mc.cores = max.cores))
-
-  transformToK = function(Sf,L, n, Lm, LSm){(A/(L - Lm))*(Sf/n + ((2*r.values)/A)*(LSm - Lm^2)) + Lm^2/pi} # eq(5)
-  transformToL = function(Sf,L, n, Lm, LSm){sqrt(transformToK(Sf,L, n, Lm, LSm)/pi)-Lm/pi} # eq(6)
-  transformToKpcf = function(Sf,L, n, Lm, LSm){(A/(L - Lm))*(Sf/n + ((2*r.values)/A)*(LSm - Lm^2)) - 2*r.values*Lm} # eq(4)
-  
-  data.frame(r = r.values, S = s.values/psp_object$n,
-             K = transformToK(s.values, L, psp_object$n, l.mean, l.squared.mean),
-             Kpcf = transformToKpcf(s.values, L, psp_object$n, l.mean, l.squared.mean),
-             L = transformToL(s.values, L, psp_object$n, l.mean, l.squared.mean))
+  n = psp_object$n
+  Lm = mean(lengths_psp(psp_object)) # mean length
+  LSm = mean(lengths_psp(psp_object)^2) # mean of squared lengths
+  Sf = as.numeric(pbmclapply(r, SFibre.r, mc.cores = max.cores))/n # eq(1)
+  transformToK = function(){(A/(L - Lm))*(Sf + ((2*r)/A)*(LSm - Lm^2)) + Lm^2/pi} # eq(5)
+  transformToL = function(){sqrt(transformToK()/pi)-Lm/pi} # eq(6)
+  transformToKpcf = function(){(A/(L - Lm))*(Sf + ((2*r)/A)*(LSm - Lm^2)) - 2*r*Lm} # eq(4)
+  data.frame(r = r, 
+             S = Sf,
+             K = transformToK(),
+             Kpcf = transformToKpcf(),
+             L = transformToL())
 } # end Lfibre(...)
+
+
+
+
+# simulates restricted resampling and uniform randomisation
+randomise_psp <- function(psp_object, randomise, nsims){
+  df = psp_object %>% 
+    as.data.frame() %>% 
+    mutate(angle = angles.psp(psp_object), 
+           length = lengths_psp(psp_object))
+  c(list(psp_object), lapply(1:nsims, function(i){
+    if("angle-rs" %in% randomise) df = df %>% mutate(angle = sample(angle))
+    if("angle-unif" %in% randomise) df = df %>% mutate(angle = runif(n())*2*pi)
+    if("length-rs" %in% randomise) df = df %>% mutate(length = sample(length))
+    if("location-unif" %in% randomise) df = df %>% mutate(x0 = runif(n())*100, y0 = runif(n())*100)
+    df %>%
+      mutate(x1 = pmin(x0 + length*cos(angle),max(Window(psp_object)$xrange)), 
+             y1 = pmin(y0 + length*sin(angle),max(Window(psp_object)$xrange))) %>% 
+      mutate(length = NULL, angle = NULL) %>% 
+      mutate(x1 = pmax(x1,0), y1 = pmax(y1,0)) %>% 
+      as.psp(window= Window(psp_object))
+  }))
+} # end randomise_psp()
