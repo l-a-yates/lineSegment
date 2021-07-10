@@ -1,3 +1,12 @@
+#---------------------------------------------------------------------------------
+# Spatial pattern analysis of line-segment data in ecology
+#
+# This script fits all parametric models and performs model selection using AIC
+#
+# Authors: Luke Yates, Barry Brook, Jessie Buettel
+# File created: 02/03/2019
+# Last Edited: 10/07/2021
+#---------------------------------------------------------------------------------
 
 library(spatstat)
 library(tidyverse)
@@ -8,18 +17,21 @@ rm(list=(ls()))
 
 select <-  dplyr::select
 
-# load spatstat::hyperframe object
-logs <- readRDS("output/logs_2021_07_06.rds")
+# load data (a spatstat::hyperframe object)
+logs <- readRDS("data/logs_2021_07_06.rds")
+
+# compute additional quantities
 logs$angle <- with(logs, as.data.frame(logs.psp) %>% {coord2rad(.$x1-.$x0, .$y1-.$y0)})
-logs$slope <- with(logs, sqrt(dhdx^2 + dhdy^2))
-logs$slope.im <- with(logs, as.im(slope, W = Window(logs.psp)))
+logs$slope <- with(logs, sqrt(dhdx^2 + dhdy^2)) # slope spatial covariate (100 x 100 matrix in Cartesian coords)
+logs$slope.im <- with(logs, as.im(transmat(slope,"Cartesian","spatstat"), W = Window(logs.psp))) # slope covariate as an image
+logs$bases.ppp <- with(logs, as.data.frame(logs.psp) %>% ppp(x = .$x0, y = .$y0, window = Window(logs.psp))) # log bases
+
+# summarise slope values 
+with(logs, c(mean = mean(slope), sd = sd(slope)))
 
 #--------------------
 # 1: intensity models
 #--------------------
-
-# define point pattern of log bases
-logs$bases.ppp <- with(logs, as.data.frame(logs.psp) %>% ppp(x = .$x0, y = .$y0, window = Window(logs.psp)))
 
 # fit all models
 m_intensity <- list()
@@ -51,11 +63,10 @@ fit_vonmises <- function(angles, mu = NULL, kappa = NULL){
 # calculate slope at each log base and add to hyperframe
 logs$slope_i <- with(logs, {
   bases.ppp %>% as.data.frame() %>% 
-    mutate(across(everything(), ~ pmax(1,ceiling(.x)))) %>% 
-    mutate(dhdx = logs$dhdx$`T-SX`[x], dhdy = logs$dhdy$`T-SX`[y]) %>% 
-    mutate(slope = sqrt(dhdx^2 + dhdy^2)) %>% 
-    pull(slope)
+    mutate(across(everything(), ~ pmax(1,ceiling(.x)))) %>% # snap to nearest cell in slope matrices
+      apply(1, function(row){slope[row[1],row[2]]}) 
 })
+
 
 # fits the local slope-dependent angle model
 # location (mu_i) = negative gradient at base i (-\nabla_i)
@@ -109,7 +120,7 @@ fit_vm_local_2 <- function(angles, slopes){
 
 m_angle$vM_rel_slope_2 <- with(logs, fit_vm_local_2(circular(relAngle), slope_i))
 
-# model comparison: the additional complexity is not selected by AIC
+# model comparison: the additional complexity is not warranted according to AIC
 m_angle %>% map("T-SX") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
 m_angle %>% map("W-FR") %>% map_dbl("aic") %>% {. - min(.)} %>% round(1)
 

@@ -1,3 +1,12 @@
+#---------------------------------------------------------------------------------
+# Spatial pattern analysis of line-segment data in ecology
+#
+# This script produces the data plots for the manuscript
+#
+# Authors: Luke Yates, Barry Brook, Jessie Buettel
+# File created: 02/03/2019
+# Last Edited: 10/07/2021
+#---------------------------------------------------------------------------------
 
 library(spatstat)
 library(fitdistrplus)
@@ -7,12 +16,11 @@ library(RColorBrewer)
 library(ggpubr)
 library(ggplotify)
 
-
 rm(list=(ls()))
 select <-  dplyr::select
 
 # fallen-log data
-logs <- readRDS("output/logs_2021_07_06.rds")
+logs <- readRDS("data/logs_2021_07_06.rds")
 sites <- logs %>% rownames
 names(sites) <- sites
 
@@ -52,8 +60,7 @@ ggarrange(plotLogs(psp.site$`T-SX`, "T-SX") + tt1,
 # Extra plots for model explanations
 #-----------------------------------
 
-set.seed(2826) # 2854
-#base_inhom <- rpoispp(function(x,y){x/100^2}, win = owin.site)
+set.seed(2826) 
 base_inhom <- rpoispp(function(x,y){exp(-(x)/50)/100}, win = owin.site)
 base_hom <- rpoispp(intensity(base_inhom), win = owin.site)
 
@@ -68,9 +75,6 @@ angles_inhom_vonm <- rvonmises(npoints(base_inhom), circular(0), kappa = circula
 angles_hom_vonm<- rvonmises(npoints(base_hom), circular(0), kappa = circular(2))
 angles_hom_unif <- rvonmises(npoints(base_hom), circular(0), kappa = circular(0))
 angles_inhom_unif <- rvonmises(npoints(base_inhom), circular(0), kappa = circular(0))
-#rAngles_hom <- runif(npoints(base_hom))*2*pi
-
-#par(mfrow = c(1, 1),  pty = "s", oma = c(1,1,1,1), mar = c(1,1,1,1)) 
 
 # homogeneous rose plot + pdf
 rose_theme <- theme(plot.margin = margin(t= 0, l= -40, r = -10, b = -30))
@@ -123,6 +127,4 @@ final_demo_plot <- ggarrange(plotlist = plots_demo_2, nrow = 2, ncol = 3, widths
                              #hjust = c(0,-0.7,-0.6,0,0,0), vjust = 1.1,
                              font.label = list(face = "plain", size = 11)) 
 
-
-#ggsave("demo_logs_v1.pdf", width = 6, height = 5)
 #ggsave("plots/demo_logs_v1d.pdf", width = 6, height = 5)

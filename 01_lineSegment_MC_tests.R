@@ -1,32 +1,26 @@
 #---------------------------------------------------------------------------------
 # Spatial pattern analysis of line-segment data in ecology
 #
-# This script computes the summary statistics L(r) and PCF(r) and produces the 
-#  main plots in the manuscript. 
-#
-# Computes S(r), K(r), Kpcf(r), and L(r) for all simulations & observation sets. 
+# This script computes the summary statistics L(r) and g(r) and produces the 
+#  main results figure for the manuscript. 
 # 
 # Analysis applied to Ausplot sites: T-SX, W-FR
 #
-# Computation of the summary functions L(r) and K(r) are performed with a new  
+# Computation of the summary functions L(r) and g(r) are performed with a new  
 #  function Lfibre(). This function can be applied to any spatstat psp object
 #
-# This function Lfibre() makes use of parallel computation. The call to
+# The function Lfibre() makes use of parallel computation. The call to
 #  pbmclapply(...) can be replaced with ordinary lapply() if parallel
 #  processing is unavailable, but it will be slow.
 #
 # Authors: Luke Yates, Barry Brook, Jessie Buettel
 # File created: 02/03/2019
-# Last Edited: 22/12/2020
+# Last Edited: 12/07/2021
 #---------------------------------------------------------------------------------
 
 library(spatstat)
-library(fitdistrplus)
-library(circular)
 library(pbmcapply)
 library(tidyverse)
-library(pbapply)
-library(latex2exp)
 library(RColorBrewer)
 library(ggpubr)
 library(ggplotify)
@@ -38,20 +32,16 @@ max.cores <- 30
 # import function definitions
 source("00_lineSegmentFunctions.R")
 
-# fallen-log data
+# load fallen-log data
 logs <- readRDS("data/logs_2021_07_06.rds")
 sites <- logs %>% rownames
 names(sites) <- sites
 
-# spatstat psp objects
-owin.site <- logs$logs.psp[[1]]$window
-psp.site <- logs$logs.psp
-
-# number of model simulations 
+# set number of model simulations 
 NSIMS <- 199 
 
-# Simulate restricted resampling and uniform randomisation
-randomise_psp <- function(psp_object, randomise, nsims, window = NULL){
+# simulates restricted resampling and uniform randomisation
+randomise_psp <- function(psp_object, randomise, nsims){
   df = psp_object %>% 
     as.data.frame() %>% 
     mutate(angle = angles.psp(psp_object), 
@@ -74,7 +64,7 @@ randomise_psp <- function(psp_object, randomise, nsims, window = NULL){
 r_names <- c("r-angle-rs","r-angle-unif","r-location-unif",
              "r-length-rs", "r-length-rs-location-unif-angle-unif")
 
-# list of restricted quantities for each hypothesis
+# list of randomised quantities for each hypothesis
 r_type <- list(c("angle-rs"), c("angle-unif"), c("location-unif"), c("length-rs"), 
                 c("angle-rs","length-rs","location-unif"))
 
@@ -84,7 +74,7 @@ names(r_type) <- r_names
 set.seed(390403) #sample(1e6,1)
 sims <- with(logs, r_type %>% map(~ randomise_psp(logs.psp, .x, NSIMS)))
 
-# compute L(r) ----- slow ~ 6 hours
+# compute summary function estimates ----- slow ~ 6 hours
 if(F){
   Lfs <- list()
   for(site in sites){
@@ -149,7 +139,7 @@ LfunMean <- lapply(sites, function(site){
     bind_cols(r = Lf[[site]][[1]]$r, obs = Lf[[site]][[1]]$obs, .)
 })
 
-# model comparison
+# total discrepancy on interval r_limits
 discrepancy_fun <- function(x, y, q = 1, p =2) (abs(x^q - y^q))^p 
 Ldiscrepancy <- LfunMean %>% map(~.x %>% filter(r >= r_limits[1], r <= r_limits[2]) %>% 
                                         select(-r) %>% mutate_at(vars(-obs), ~ discrepancy_fun(obs,.)) %>% 
@@ -245,7 +235,6 @@ PCFfunMean <- lapply(sites, function(site){
 })
 
 # total discrepancy on interval r_limits
-discrepancy_fun <- function(x, y, q = 1, p =2) (abs(x^q - y^q))^p 
 discrepancy.pcf <- PCFfunMean %>% map(~.x %>% filter(r >= r_limits_pcf[1], r <= r_limits_pcf[2]) %>% 
   select(-r) %>% mutate_at(vars(-obs), ~ discrepancy_fun(obs,.)) %>% 
   select(-obs) %>% map(sum))
