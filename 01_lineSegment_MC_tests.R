@@ -3,6 +3,14 @@
 #
 # This script computes the summary statistics L(r) and g(r) and produces the 
 #  main results figure for the manuscript. 
+<<<<<<< HEAD
+=======
+# 
+# Analysis applied to Ausplot sites: T-SX, W-FR
+#
+# Computation of the summary functions L(r) and g(r) are performed with a new  
+#  function Lfibre(). This function can be applied to any spatstat psp object
+>>>>>>> 02c9d2229087ce76ec30a87cdf6751190f9185d2
 #
 # The function Lfibre() makes use of parallel computation. The call to
 #  pbmclapply(...) can be replaced with ordinary lapply() if parallel
@@ -32,6 +40,7 @@ logs <- readRDS("data/logs_2021_07_06.rds")
 sites <- logs %>% rownames
 names(sites) <- sites
 
+<<<<<<< HEAD
 #------------------------
 # randomised simulations
 #------------------------
@@ -39,11 +48,40 @@ names(sites) <- sites
 # set number of simulations 
 NSIMS <- 199 
 
+=======
+# set number of model simulations 
+NSIMS <- 199 
+
+# simulates restricted resampling and uniform randomisation
+randomise_psp <- function(psp_object, randomise, nsims){
+  df = psp_object %>% 
+    as.data.frame() %>% 
+    mutate(angle = angles.psp(psp_object), 
+           length = lengths_psp(psp_object))
+  c(list(psp_object), lapply(1:nsims, function(i){
+    if("angle-rs" %in% randomise) df = df %>% mutate(angle = sample(angle))
+    if("angle-unif" %in% randomise) df = df %>% mutate(angle = runif(n())*2*pi)
+    if("length-rs" %in% randomise) df = df %>% mutate(length = sample(length))
+    if("location-unif" %in% randomise) df = df %>% mutate(x0 = runif(n())*100, y0 = runif(n())*100)
+    df %>%
+      mutate(x1 = pmin(x0 + length*cos(angle),max(Window(psp_object)$xrange)), 
+             y1 = pmin(y0 + length*sin(angle),max(Window(psp_object)$xrange))) %>% 
+      mutate(length = NULL, angle = NULL) %>% 
+      mutate(x1 = pmax(x1,0), y1 = pmax(y1,0)) %>% 
+      as.psp(window= Window(psp_object))
+  }))
+}
+
+>>>>>>> 02c9d2229087ce76ec30a87cdf6751190f9185d2
 # list of hypotheses by name
 r_names <- c("r-angle-rs","r-angle-unif","r-location-unif",
              "r-length-rs", "r-length-rs-location-unif-angle-unif")
 
+<<<<<<< HEAD
 # named list of randomised quantities for each hypothesis
+=======
+# list of randomised quantities for each hypothesis
+>>>>>>> 02c9d2229087ce76ec30a87cdf6751190f9185d2
 r_type <- list(c("angle-rs"), c("angle-unif"), c("location-unif"), c("length-rs"), 
                 c("angle-rs","length-rs","location-unif"))
 names(r_type) <- r_names
@@ -52,11 +90,15 @@ names(r_type) <- r_names
 set.seed(390403) #sample(1e6,1)
 sims <- with(logs, r_type %>% map(~ randomise_psp(logs.psp, .x, NSIMS)))
 
+<<<<<<< HEAD
 
 #---------------------------------------------------------
 # compute summary function estimates ----- slow ~ 6 hours
 #---------------------------------------------------------
 
+=======
+# compute summary function estimates ----- slow ~ 6 hours
+>>>>>>> 02c9d2229087ce76ec30a87cdf6751190f9185d2
 if(F){
   Lfs <- list()
   for(site in sites){
