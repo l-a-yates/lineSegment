@@ -1,14 +1,11 @@
 #-------------------------------------------------------
 # Spatial statistics for line segment data 
-<<<<<<< HEAD
 #
 # Main function to compute summary statistics for a line-segment pattern
 #
 # The function Lfibre() can be applied to any spatstat psp object
 #
-=======
 # Main function to compute summary statistics for a line-segment pattern
->>>>>>> 02c9d2229087ce76ec30a87cdf6751190f9185d2
 # Authors: Luke Yates
 # File created: 02/03/2019
 # Last Edited: 10/07/2021
@@ -55,7 +52,6 @@ Lfibre <- function(psp_object, r_min = 0, r_max = 25, r_increment = 0.1, ..., ma
              Kpcf = transformToKpcf(),
              L = transformToL())
 } # end Lfibre(...)
-
 
 
 
