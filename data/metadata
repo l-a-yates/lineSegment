@@ -1,0 +1,6 @@
+The file logs_2021_07_06.rds contains the fallen log data used in the analysis in the manuscript "Spatial pattern analysis of line-segment data in ecology" by Yates, Luke; Brook, Barry; Buettel, Jessie C (2021). The data are stored in an object of type 'hyperframe' belonging to the R package 'spatstat'. The hyperframe contains two rows, one for each forest-plot site: T-SX and W-FR. For each site (row) there are four 'columns':
+
+* logs.psp: a spatstat psp object which contains the two endpoints of each fallen log and the site window (100m x 100m). 
+* dhdx: a 100 x 100 matrix of slope values in the x-direction. Coordinates are Cartesian, grid cells are 1m x 1m. (dhdx = rate of change of height w.r.t x.)
+* dhdy: a 100 x 100 matrix of slope values in the y-direction. Coordinates are Cartesian, grid cells are 1m x 1m. (dhdy = rate of change of height w.r.t y)
+* relAngle: the angular difference (in radians) between the log orientation and the (negative) gradient at the log base.
