@@ -53,7 +53,7 @@ ggarrange(plotLogs(psp.site$`T-SX`, "T-SX") + tt1,
           plotLogs(psp.site$`W-FR`, "W-FR") + tt1)
 
 #ggsave("plots/fallen_log_plots_2021_07_06.pdf", dpi = 300, height = 4, width = 8, device = cairo_pdf)
-#ggsave("fallen_log_plots.eps", dpi = 300, height = 4, width = 8, device = cairo_ps)
+#ggsave("plots/fallen_log_plots_2021_07_06.eps", dpi = 300, height = 4, width = 8, device = cairo_ps)
 
 
 #-----------------------------------
@@ -127,4 +127,5 @@ final_demo_plot <- ggarrange(plotlist = plots_demo_2, nrow = 2, ncol = 3, widths
                              #hjust = c(0,-0.7,-0.6,0,0,0), vjust = 1.1,
                              font.label = list(face = "plain", size = 11)) 
 
-#ggsave("plots/demo_logs_v1d.pdf", width = 6, height = 5)
+#ggsave("plots/demo_logs_2021_07_09.pdf", width = 6, height = 5)
+#ggsave("plots/demo_logs_2021_07_09.eps", width = 6, height = 5, device = cairo_ps())

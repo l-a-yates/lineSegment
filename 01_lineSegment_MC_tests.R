@@ -167,6 +167,8 @@ Lr_plot <- ggarrange(plotSX, plotFR, nrow = 1, ncol = 2)
 #ggsave("plots/results_MC_tests_Lfun_nsim199_2021_07_09.pdf", 
 #       plot = Lr_plot, dpi = 300, height = 9, width = 8, device = cairo_pdf)
 
+#ggsave("plots/results_MC_tests_Lfun_nsim199_2021_07_09.eps", 
+#       plot = Lr_plot, dpi = 300, height = 9, width = 8, device = cairo_ps)
 
 #-----------
 # pcf plots
@@ -211,7 +213,7 @@ plotPCF<- function(dat, method = "c", title = NULL, subtitle = NULL, p_sig = 0.0
     geom_line(aes(y = obs - 1), col = blues9[9], data = dat, size = 0.8) +
     geom_line(aes(group = grp), col = reds9[7], data = dat_sig_p, size = 0.9) +
     labs(title = title, subtitle = subtitle, y = "g(r)-1") +
-    theme_light
+    theme_light()
 }
 
 # compute simulation mean
@@ -247,7 +249,7 @@ plot.pcf.FR <- ggarrange(plotlist = plots.pcf.FR, ncol = 1, nrow = 5, labels = c
 
 
 pcf_plot_main <- ggarrange(plot.pcf.SX, plot.pcf.FR, nrow = 1, ncol = 2)
-#ggsave("pcf_results.eps", dpi = 300, height = 11, width = 8, device = cairo_ps)
+ggsave("plots/results_MC_tests_pcf_nsim199_2021_07_09.eps", dpi = 300, height = 9, width = 8, device = cairo_ps)
 #ggsave(plot = pcf_plot_main, "plots/results_MC_tests_pcf_nsim199_2021_07_09.pdf", 
 #       dpi = 300, height = 9, width = 8, device = cairo_pdf)
 }
