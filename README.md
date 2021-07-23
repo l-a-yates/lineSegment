@@ -1,10 +1,10 @@
 ## Spatial pattern analysis of line-segment data in ecology
 
-## About
+### About
 
 This repository provides code to reproduce the analyses in the manuscript "Spatial pattern analysis of line-segment data in ecology" by Yates, Luke; Brook, Barry;   Buettel, Jessie C (2021).
 
-## Details
+### Details
 
 The series of four R scripts 00_lineSegment...R, etc. reproduce the full set of results for the manuscript:
 
