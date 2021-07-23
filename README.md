@@ -1,4 +1,4 @@
-# Spatial pattern analysis of line-segment data in ecology
+## Spatial pattern analysis of line-segment data in ecology
 
 ## About
 
